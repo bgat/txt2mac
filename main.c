@@ -3,25 +3,34 @@
 #include <string.h>
 #include <ctype.h>
 
-/* TODO: hash the string, to "whiten" the mac value returned */
+typedef unsigned char u8_t;
 
-/* converts a decimal string on stdin to a legal MAC address on stdout */
+static u8_t lsr8(u8_t v)
+{
+	return (v >> 1) | (v << 7);
+}
+
+u8_t galois_lfsr8(u8_t seed)
+{
+	if (seed & 1)
+		return lsr8(seed) ^ 0xb8; // x^8 + x^6 + x^5 + x^4 + 1
+	return lsr8(seed);
+}
+
+/* converts a string on stdin to a legal MAC address on stdout */
 int main(int argc, const char *argv[], const char *env[])
 {
-	const int max_len = 256;
-	char *str = alloca(max_len);
-	unsigned long lmac;
-	unsigned char mac[6];
-	int wm;
+	u8_t seed = 0;
+	u8_t mac[6];
+	int c = 0, wm;
 
-	if (!fgets(str, max_len, stdin))
-		return 0;
-	lmac = strtoul(str, NULL, 10);
+	do {
+		c = fgetc(stdin);
+		seed = galois_lfsr8(seed ^ c);
+	} while(c != EOF);
 
-	for (wm = 0; wm < sizeof(mac); wm++) {
-		mac[wm] = lmac;
-		lmac >>= 8;
-	}
+	for (wm = 0; wm < sizeof(mac); wm++)
+		mac[wm] = seed = galois_lfsr8(seed);
 
 	/* force unicast, locally-administered */
 	mac[0] &= ~1;
